@@ -38,36 +38,56 @@ class EmployeeController extends Controller
         return view('employee.create', compact('pageTitle', 'positions'));
     }
 
-    public function store(Request $request)
-    {
-        $messages = [
-            'required' => ':Attribute harus diisi.',
-            'email' => 'Isi :attribute dengan format yang benar',
-            'numeric' => 'Isi :attribute dengan angka'
-        ];
 
-        $validator = Validator::make($request->all(), [
-            'firstName' => 'required',
-            'lastName' => 'required',
-            'email' => 'required|email',
-            'age' => 'required|numeric',
-        ], $messages);
+public function store(Request $request)
+{
+    $messages = [
+        'required' => ':Attribute harus diisi.',
+        'email' => 'Isi :attribute dengan format yang benar',
+        'numeric' => 'Isi :attribute dengan angka'
+    ];
 
-        if ($validator->fails()) {
-            return redirect()->back()->withErrors($validator)->withInput();
-        }
+    $validator = Validator::make($request->all(), [
+        'firstName' => 'required',
+        'lastName' => 'required',
+        'email' => 'required|email',
+        'age' => 'required|numeric',
+    ], $messages);
 
-        // ELOQUENT
-        $employee = New Employee;
-        $employee->firstname = $request->firstName;
-        $employee->lastname = $request->lastName;
-        $employee->email = $request->email;
-        $employee->age = $request->age;
-        $employee->position_id = $request->position;
-        $employee->save();
-
-        return redirect()->route('employees.index');
+    if ($validator->fails()) {
+        return redirect()->back()->withErrors($validator)->withInput();
     }
+
+    // Get File
+    $file = $request->file('cv');
+
+    if ($file != null) {
+        $originalFilename = $file->getClientOriginalName();
+        $encryptedFilename = $file->hashName();
+
+        // Store File
+        $file->store('public/files');
+    }
+
+    // ELOQUENT
+    $employee = New Employee;
+    $employee->firstname = $request->firstName;
+    $employee->lastname = $request->lastName;
+    $employee->email = $request->email;
+    $employee->age = $request->age;
+    $employee->position_id = $request->position;
+
+    if ($file != null) {
+        $employee->original_filename = $originalFilename;
+        $employee->encrypted_filename = $encryptedFilename;
+    }
+
+    $employee->save();
+
+    return redirect()->route('employees.index');
+}
+
+
 
 public function show(string $id)
 {
@@ -135,5 +155,15 @@ public function show(string $id)
     Employee::find($id)->delete();
 
     return redirect()->route('employees.index');
+}
+    public function downloadFile($employeeId)
+{
+    $employee = Employee::find($employeeId);
+    $encryptedFilename = 'public/files/'.$employee->encrypted_filename;
+    $downloadFilename = Str::lower($employee->firstname.'_'.$employee->lastname.'_cv.pdf');
+
+    if(Storage::exists($encryptedFilename)) {
+        return Storage::download($encryptedFilename, $downloadFilename);
+    }
 }
 }
